@@ -1,5 +1,8 @@
 # Goal
 string prompt                    # Task description for policy execution
+string policy_name               # Registry lookup key; empty = use explicit fields or defaults
+string pretrained_name_or_path   # HF repo ID or local path; overrides registry/default when non-empty
+string policy_type               # Policy architecture (act, diffusion, sns_diffusion, ...); overrides registry/default when non-empty
 ---
 # Result
 bool success                     # Whether policy execution completed successfully
@@ -9,3 +12,5 @@ string message                   # Error details or success info
 uint32 published_actions         # Total actions published so far
 uint32 queue_depth               # Current action queue depth
 string status                    # Current state: "executing", etc.
+string active_pretrained         # Pretrained path actually loaded for this run
+string active_policy_name        # Resolved registry name (empty if not using registry)
