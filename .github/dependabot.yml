@@ -1,0 +1,9 @@
+version: 2
+updates:
+  # Only ecosystem present: GitHub Actions (workflows arrive with task 2.3/A06).
+  # The repo is a ROS 2 interface package (package.xml/CMake) — no Dependabot
+  # ecosystem covers ROS/ament dependencies.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
