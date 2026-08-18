@@ -1,0 +1,39 @@
+# CI for rosetta_interfaces (task 2.3/A06): stable required checks
+# `quality / quality` and `build / build` via the sns_ci reusable workflows.
+#
+# The build job runs in plain (non-sns_setup) mode: this is a pure ROS 2
+# interface package whose only dependency (action_msgs) ships with the base
+# ros:humble image, so no SSH key or private-repo workspace is needed and the
+# pull_request job receives no secrets at all. colcon build exercises rosidl
+# generation over every .msg/.srv/.action file and colcon test runs the
+# interface import smoke test plus ament_lint_auto.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    uses: Develop-SF/sns_ci/.github/workflows/quality.yaml@ken/feature/cicd_refactor # TODO: pin to sns_ci release tag after merge
+    with:
+      timeout_minutes: 15
+
+  build:
+    uses: Develop-SF/sns_ci/.github/workflows/ros-build.yaml@ken/feature/cicd_refactor # TODO: pin to sns_ci release tag after merge
+    with:
+      container_image: ros:humble
+      use_sns_setup: false
+      packages: rosetta_interfaces
+      run_tests: true
+      extra_cmake_args: ""
+      timeout_minutes: 30

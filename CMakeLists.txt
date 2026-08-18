@@ -30,6 +30,12 @@ if(BUILD_TESTING)
   # a copyright and license is added to all source files
   set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
+
+  # Interface import smoke test: imports every generated Python interface.
+  # Run after `colcon build` with the workspace's install/setup.bash sourced
+  # (CI does this) so the generated rosetta_interfaces modules are importable.
+  find_package(ament_cmake_pytest REQUIRED)
+  ament_add_pytest_test(interfaces_import test/test_interfaces_import.py)
 endif()
 
 ament_package()
