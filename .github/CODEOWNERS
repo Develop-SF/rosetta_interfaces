@@ -1,0 +1,7 @@
+# Default owner for everything in the repo.
+* @ken-leong
+
+# Org agent instructions: managed block is synced from Develop-SF/sns_ci;
+# ownership pinned explicitly per task 2.6.
+AGENTS.md @ken-leong
+CLAUDE.md @ken-leong
