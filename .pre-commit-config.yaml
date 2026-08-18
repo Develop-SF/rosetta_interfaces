@@ -1,0 +1,33 @@
+# Org pre-commit profile: Common + ROS interfaces (task 2.2/A07).
+#
+# ROS interfaces section: no standalone IDL-lint tooling exists as a
+# pre-commit hook (parsing .msg/.srv/.action requires a ROS environment), so
+# IDL validation is enforced by the `build / build` required check instead:
+# rosidl generation parses every interface file during colcon build, and the
+# interface import smoke test plus ament_lint_auto run under colcon test.
+# package.xml syntax is covered by check-xml below.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      # Common: whitespace and line endings
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      # Common: conflicts
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      # Common: secrets
+      - id: detect-private-key
+      # Common: syntax (check-xml covers package.xml)
+      - id: check-toml
+      - id: check-json
+      - id: check-yaml
+      - id: check-xml
+      # Common: executable/shebang consistency
+      - id: check-executables-have-shebangs
+      - id: check-shebang-scripts-are-executable
+      # Common: large-file policy
+      - id: check-added-large-files
+        args: [--maxkb=1000]
