@@ -24,12 +24,12 @@ concurrency:
 
 jobs:
   quality:
-    uses: Develop-SF/sns_ci/.github/workflows/quality.yaml@main # zizmor: ignore[unpinned-uses] same-org reusable pinned to release tag
+    uses: Develop-SF/sns_ci/.github/workflows/quality.yaml@v1.0.0 # zizmor: ignore[unpinned-uses] same-org reusable pinned to release tag
     with:
       timeout_minutes: 15
 
   build:
-    uses: Develop-SF/sns_ci/.github/workflows/ros-build.yaml@main # zizmor: ignore[unpinned-uses] same-org reusable pinned to release tag
+    uses: Develop-SF/sns_ci/.github/workflows/ros-build.yaml@v1.0.0 # zizmor: ignore[unpinned-uses] same-org reusable pinned to release tag
     with:
       container_image: ros:humble
       use_sns_setup: false
