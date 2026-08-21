@@ -34,9 +34,10 @@ pre-commit run --all-files
 
 ### Required checks (stable names)
 
-- `quality / quality` — pre-commit, AGENTS.md drift guards, PR-title format.
-- `build / build` — colcon build (rosidl parses every `.msg`/`.srv`/`.action`)
-  + colcon test (interface import smoke test, `ament_lint_auto`), in plain `ros:humble` mode via `Develop-SF/sns_ci` ros-build.yaml. No secrets on PRs.
+- `quality` — pre-commit, AGENTS.md drift guards, PR-title format.
+- `build` — colcon build (rosidl parses every `.msg`/`.srv`/`.action`) + colcon test (interface import smoke test, `ament_lint_auto`), in plain `ros:humble` mode. No secrets on PRs.
+
+This repo is public, and GitHub forbids a public repo from calling a reusable workflow in a private one, so `.github/workflows/ci.yaml` **vendors** both lanes instead of calling `Develop-SF/sns_ci`. Consequences: the contexts are bare job names (no `quality / quality` shape); both jobs run on GitHub-hosted runners, never `local-main`, because any fork can open a PR here; and when the org policy fragment changes, `CANONICAL_AGENTS_BLOCK_SHA256` in that workflow must be updated in the same commit that syncs the managed block.
 
 ### Local gotchas
 

@@ -1,12 +1,22 @@
-# CI for rosetta_interfaces (task 2.3/A06): stable required checks
-# `quality / quality` and `build / build` via the sns_ci reusable workflows.
+# CI for rosetta_interfaces (task 2.3/A06) - VENDORED, not a caller.
 #
-# The build job runs in plain (non-sns_setup) mode: this is a pure ROS 2
-# interface package whose only dependency (action_msgs) ships with the base
-# ros:humble image, so no SSH key or private-repo workspace is needed and the
-# pull_request job receives no secrets at all. colcon build exercises rosidl
-# generation over every .msg/.srv/.action file and colcon test runs the
-# interface import smoke test plus ament_lint_auto.
+# This repository is public (it is a fork, and stays one - owner decision), and
+# GitHub forbids a public repository from calling a reusable workflow in a
+# private one. The Develop-SF/sns_ci callers this file used to hold could never
+# resolve, so every run failed before a single step executed. The quality and
+# build lanes are therefore inlined here, mirroring
+# sns_ci/.github/workflows/quality.yaml and the plain (non-sns_setup) path of
+# sns_ci/.github/workflows/ros-build.yaml. Keep them in step by hand: when the
+# org policy fragment changes, CANONICAL_AGENTS_BLOCK_SHA256 below must be
+# updated in the same commit that syncs AGENTS.md.
+#
+# Both jobs run on GitHub-hosted runners. That is deliberate and differs from
+# the reusable workflow's `local-main` default: this repo is public, so any
+# fork can open a pull request, and PR-triggered work must never land on the
+# org's self-hosted runners. Nothing here reads a secret.
+#
+# Check contexts: `quality` and `build` (a vendored job cannot reproduce the
+# `<job> / <reusable job>` shape, so the rulesets require these names).
 name: ci
 
 on:
@@ -24,16 +34,152 @@ concurrency:
 
 jobs:
   quality:
-    uses: Develop-SF/sns_ci/.github/workflows/quality.yaml@v1.0.0 # zizmor: ignore[unpinned-uses] same-org reusable pinned to release tag
-    with:
-      timeout_minutes: 15
+    name: quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # sha256 of agents/org-policy.md in sns_ci at v1.0.0. Mirrors the
+      # constant in sns_ci's quality.yaml; policy/managed-block-hash.sh derives
+      # it there.
+      CANONICAL_AGENTS_BLOCK_SHA256: 586283c524076019f470dd961e13e851f6cdd495dbe29206d37d9b0821a102f3
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: "3.12"
+
+      - name: Run pre-commit over all files
+        uses: pre-commit/action@2c7b3805fd2a0fd8c1884dcaebf91fc102a13ecd # v3.0.1
+        with:
+          extra_args: --all-files
+
+      - name: AGENTS.md drift guards
+        shell: bash
+        run: |
+          if [ ! -e AGENTS.md ]; then
+            echo "::notice::AGENTS.md not present - repo not enrolled in org agent instructions yet; skipping drift guards"
+            exit 0
+          fi
+          fail=0
+
+          # 1. Size/section lint: at most 120 lines, markers exactly once each.
+          lines="$(wc -l < AGENTS.md)"
+          if [ "${lines}" -gt 120 ]; then
+            echo "::error file=AGENTS.md::AGENTS.md has ${lines} lines; the org limit is 120 (~1 page). Move detail to docs/ and reference it by path."
+            fail=1
+          fi
+          BEGIN_MARKER='<!-- BEGIN sns_ci managed block -->'
+          END_MARKER='<!-- END sns_ci managed block -->'
+          begin_count="$(grep -cxF "${BEGIN_MARKER}" AGENTS.md || true)"
+          end_count="$(grep -cxF "${END_MARKER}" AGENTS.md || true)"
+          if [ "${begin_count}" != 1 ] || [ "${end_count}" != 1 ]; then
+            echo "::error file=AGENTS.md::expected exactly one BEGIN and one END sns_ci managed-block marker (got ${begin_count}/${end_count})"
+            fail=1
+          else
+            # 2. Managed-block hash matches the canonical agents/org-policy.md
+            #    fragment recorded above.
+            block_hash="$(awk -v begin="${BEGIN_MARKER}" -v end="${END_MARKER}" '
+              $0 == end { inside = 0 }
+              inside { print }
+              $0 == begin { inside = 1 }
+            ' AGENTS.md | sha256sum | awk '{print $1}')"
+            if [ "${block_hash}" != "${CANONICAL_AGENTS_BLOCK_SHA256}" ]; then
+              echo "::error file=AGENTS.md::managed block drifted from the canonical sns_ci fragment (got sha256 ${block_hash}, expected ${CANONICAL_AGENTS_BLOCK_SHA256}). Never edit the managed block locally; it is synced from sns_ci/agents/org-policy.md."
+              fail=1
+            fi
+          fi
+
+          # 3. CLAUDE.md must be a symlink to AGENTS.md, never a second file.
+          if [ ! -L CLAUDE.md ]; then
+            echo "::error file=CLAUDE.md::CLAUDE.md must be a symlink to AGENTS.md (found $([ -e CLAUDE.md ] && echo 'a regular file' || echo 'nothing'))"
+            fail=1
+          elif [ "$(readlink CLAUDE.md)" != "AGENTS.md" ]; then
+            echo "::error file=CLAUDE.md::CLAUDE.md must point at AGENTS.md (points at '$(readlink CLAUDE.md)')"
+            fail=1
+          fi
+          exit "${fail}"
+
+      - name: PR title format
+        if: ${{ github.event_name == 'pull_request' }}
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        shell: bash
+        run: |
+          title="${PR_TITLE}"
+          fail=0
+          # Optional "[TICKET-123] " prefix is allowed before the subject.
+          subject="${title}"
+          if [[ "${subject}" =~ ^\[[A-Z][A-Z0-9]*-[0-9]+\][[:space:]] ]]; then
+            subject="${subject#*\] }"
+          fi
+          if [[ ! "${subject}" =~ ^[A-Z] ]]; then
+            echo "::error::PR title must start with an uppercase letter (an optional '[TICKET-123] ' prefix is allowed): '${title}'"
+            fail=1
+          fi
+          if [[ "${title}" == *. ]]; then
+            echo "::error::PR title must not end with a period: '${title}'"
+            fail=1
+          fi
+          # No length check by policy (owner decision 2026-08-17).
+          exit "${fail}"
 
   build:
-    uses: Develop-SF/sns_ci/.github/workflows/ros-build.yaml@v1.0.0 # zizmor: ignore[unpinned-uses] same-org reusable pinned to release tag
-    with:
-      container_image: ros:humble
-      use_sns_setup: false
-      packages: rosetta_interfaces
-      run_tests: true
-      extra_cmake_args: ""
-      timeout_minutes: 30
+    name: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    container:
+      # Plain ROS 2 Humble: action_msgs, this package's only dependency, ships
+      # with the base image, so no private workspace and no SSH key.
+      image: ros:humble # zizmor: ignore[unpinned-images] upstream ROS release tag, same convention as the sns_ci reusable
+      env:
+        XAUTHORITY: /dev/null
+    steps:
+      - name: Checkout event source
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          path: event-src
+          persist-credentials: false
+
+      - name: Prepare plain workspace
+        shell: bash
+        run: mkdir -p ~/ws_sns/src
+
+      - name: Place event source in the workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          src_name="$(basename "${GITHUB_REPOSITORY}")"
+          rm -rf "${HOME}/ws_sns/src/${src_name}"
+          cp -a "${GITHUB_WORKSPACE}/event-src" "${HOME}/ws_sns/src/${src_name}"
+          echo "Workspace source '${src_name}' is the event checkout (${GITHUB_SHA})"
+
+      - name: Colcon build
+        shell: bash
+        working-directory: /github/home/ws_sns
+        run: |
+          set +u
+          # shellcheck disable=SC1091
+          source /opt/ros/humble/setup.bash
+          set -u
+          apt-get update
+          rosdep update
+          rosdep install --from-paths src --ignore-src -r -y
+          colcon build --packages-select rosetta_interfaces
+
+      - name: Colcon test
+        shell: bash
+        working-directory: /github/home/ws_sns
+        run: |
+          set +u
+          # shellcheck disable=SC1091
+          source /opt/ros/humble/setup.bash
+          # Required before colcon test: the import smoke test needs the
+          # generated Python modules on the path.
+          # shellcheck disable=SC1091
+          source install/setup.bash
+          set -u
+          colcon test --packages-select rosetta_interfaces
+          colcon test-result --verbose
