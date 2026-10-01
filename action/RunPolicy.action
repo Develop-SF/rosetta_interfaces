@@ -3,6 +3,7 @@ string prompt                    # Task description for policy execution
 string policy_name               # Registry lookup key; empty = use explicit fields or defaults
 string pretrained_name_or_path   # HF repo ID or local path; overrides registry/default when non-empty
 string policy_type               # Policy architecture (act, diffusion, sns_diffusion, ...); overrides registry/default when non-empty
+bool preload_only                # Load the model on the managed policy server and return without executing; a later goal for the same model skips the cold load
 ---
 # Result
 bool success                     # Whether policy execution completed successfully
