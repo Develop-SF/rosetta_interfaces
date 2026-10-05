@@ -20,6 +20,9 @@ uint8 STATE_CACHED=2    # The model below is warm in the managed server's
 builtin_interfaces/Time stamp     # Node clock at publish time
 string server_address             # The managed server this snapshot describes
 uint8 state
+string policy_type                # Resolved architecture (sns_smolvla, act, ...);
+                                  # part of the cache identity — the same path
+                                  # loaded as a different type is a different model
 string policy_name                # Registry entry name; empty when the goal
                                   # supplied an explicit path instead
 string pretrained_name_or_path    # Empty unless state is STATE_CACHED
